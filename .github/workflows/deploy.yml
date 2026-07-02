@@ -17,24 +17,24 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./demo
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: demo/package-lock.json
       - uses: Swatinem/rust-cache@v2
 
-      # Read the top-level rust-toolchain.toml and install the required stuff.
-      - name: Trigger toolchain installation
-        working-directory: ./demo
-        run: cargo fetch --locked
-      - name: Build demo
-        working-directory: ./demo
-        run: |
-          npm ci
-          npm run build
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install trunk
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+
+      - name: Build with trunk
+        run: trunk build --release --public-url /${{ github.event.repository.name }}/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

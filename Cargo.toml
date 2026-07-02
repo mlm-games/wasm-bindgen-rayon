@@ -22,7 +22,8 @@ crossbeam-channel = "0.5"
 js-sys = "0.3"
 
 [workspace]
-members = ["demo", "test"]
+members = ["test"]
+exclude = ["demo"]
 
 [features]
 nightly = []

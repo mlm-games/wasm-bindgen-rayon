@@ -22,7 +22,7 @@
 
 # Usage
 
-WebAssembly thread support is not yet a first-class citizen in Rust - it's still only available in nightly - so there are a few things to keep in mind when using this crate. Bear with me :)
+WebAssembly thread support is not yet a first-class citizen in Rust - it's still only available in nightly - so there are a few things to keep in mind when using this crate.
 
 For a quick demo, check out [this Mandelbrot fractal generator](https://rreverser.com/wasm-bindgen-rayon-demo/):
 
@@ -50,8 +50,8 @@ Then, add `wasm-bindgen`, `rayon`, and this crate as dependencies to your `Cargo
 ```toml
 [dependencies]
 wasm-bindgen = "0.2"
-rayon = "1.8"
-wasm-bindgen-rayon = "1.2"
+rayon = "1"
+wasm-bindgen-rayon = "1.3"
 ```
 
 Then, reexport the `init_thread_pool` function:
@@ -74,7 +74,8 @@ await init();
 
 // Thread pool initialization with the given number of threads
 // (pass `navigator.hardwareConcurrency` if you want to use all cores).
-await initThreadPool(navigator.hardwareConcurrency);
+const threads = Math.max(1, Math.min(navigator.hardwareConcurrency || 1, 32));
+await initThreadPool(threads);
 
 // ...now you can invoke any exported functions as you normally would
 ```
@@ -197,24 +198,29 @@ The default JS glue was designed in a way that works great with bundlers and cod
 If you want to build this library for usage without bundlers, enable the `no-bundler` feature for `wasm-bindgen-rayon` in your `Cargo.toml`:
 
 ```toml
-wasm-bindgen-rayon = { version = "1.2", features = ["no-bundler"] }
+wasm-bindgen-rayon = { version = "1.3", features = ["no-bundler"] }
 ```
 
 ## Feature detection
 
-If you're targeting [older browser versions that didn't support WebAssembly threads yet](https://webassembly.org/roadmap/), you'll likely want to make two builds - one with threads support and one without - and use feature detection to choose the right one on the JavaScript side.
-
-You can use [`wasm-feature-detect`](https://github.com/GoogleChromeLabs/wasm-feature-detect) library for this purpose. The code will look roughly like this:
+Browser engine support for Wasm threads is now broad, but runtime availability still depends on cross-origin isolation and deployment configuration. If you need graceful fallback, use feature detection along with a `crossOriginIsolated` check:
 
 ```js
 import { threads } from 'wasm-feature-detect';
 
+if (!crossOriginIsolated) {
+  // Wasm threads require cross-origin isolation.
+  // Serve the top-level document with COOP/COEP headers.
+  console.warn('Wasm threads unavailable: page is not cross-origin isolated.');
+}
+
 let wasmPkg;
 
-if (await threads()) {
+if (await threads() && crossOriginIsolated) {
   wasmPkg = await import('./pkg-with-threads/index.js');
   await wasmPkg.default();
-  await wasmPkg.initThreadPool(navigator.hardwareConcurrency);
+  const numThreads = Math.max(1, Math.min(navigator.hardwareConcurrency || 1, 32));
+  await wasmPkg.initThreadPool(numThreads);
 } else {
   wasmPkg = await import('./pkg-without-threads/index.js');
   await wasmPkg.default();
@@ -222,6 +228,8 @@ if (await threads()) {
 
 wasmPkg.nowCallAnyExportedFuncs();
 ```
+
+If JS/Wasm/worker files are served from a CDN or other origin, they must be CORS-enabled or served with appropriate CORP headers; otherwise `COEP: require-corp` will block them.
 
 # License
 

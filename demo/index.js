@@ -24,6 +24,10 @@ const timeOutput = /** @type {HTMLOutputElement} */ (
   document.getElementById('time')
 );
 
+if (!ctx) {
+  throw new Error('Failed to get canvas 2D context');
+}
+
 function setupBtn(id, { generate }) {
   // Assign onclick handler + enable the button.
   Object.assign(document.getElementById(id), {
@@ -47,9 +51,14 @@ function setupBtn(id, { generate }) {
 })();
 
 (async function initMultiThread() {
-  if (!(await threads())) return;
+  if (!(await threads()) || !crossOriginIsolated) {
+    document.getElementById('multiThread').value =
+      'Multi-threaded (unavailable - missing COOP/COEP headers)';
+    return;
+  }
   const multiThread = await import('./pkg-parallel/wasm_bindgen_rayon_demo.js');
   await multiThread.default();
-  await multiThread.initThreadPool(navigator.hardwareConcurrency);
+  const numThreads = Math.max(1, Math.min(navigator.hardwareConcurrency || 1, 32));
+  await multiThread.initThreadPool(numThreads);
   setupBtn('multiThread', multiThread);
 })();

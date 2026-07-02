@@ -29,12 +29,13 @@ struct Generator {
 
 impl Generator {
     fn new(width: u32, height: u32, max_iterations: u32) -> Self {
+        let max_iterations = max_iterations.max(1);
         let mut rng = rand::thread_rng();
 
         Self {
             width,
             height,
-            palette: (0..max_iterations)
+            palette: (0..=max_iterations)
                 .map(move |_| {
                     let (r, g, b) = HSL {
                         h: rng.gen_range(0.0..360.0),
@@ -55,12 +56,10 @@ impl Generator {
             (f64::from(y) - f64::from(self.height) / 2.0) * 4.0 / f64::from(self.height),
         );
         let mut z = Complex64::new(0.0, 0.0);
+        let max = self.palette.len() - 1;
         let mut i = 0;
-        while z.norm_sqr() < 4.0 {
-            if i == self.palette.len() {
-                return &self.palette[0];
-            }
-            z = z.powi(2) + c;
+        while i < max && z.norm_sqr() < 4.0 {
+            z = z * z + c;
             i += 1;
         }
         &self.palette[i]
@@ -82,10 +81,19 @@ impl Generator {
 }
 
 #[wasm_bindgen]
-pub fn generate(width: u32, height: u32, max_iterations: u32) -> Clamped<Vec<u8>> {
-    Clamped(
+pub fn generate(width: u32, height: u32, max_iterations: u32) -> Result<Clamped<Vec<u8>>, JsValue> {
+    let pixels = u64::from(width)
+        .checked_mul(u64::from(height))
+        .and_then(|n| n.checked_mul(4))
+        .ok_or_else(|| JsValue::from_str("Image dimensions overflow"))?;
+
+    if pixels > 256 * 1024 * 1024 {
+        return Err(JsValue::from_str("Image too large"));
+    }
+
+    Ok(Clamped(
         Generator::new(width, height, max_iterations)
             .iter_bytes()
             .collect(),
-    )
+    ))
 }

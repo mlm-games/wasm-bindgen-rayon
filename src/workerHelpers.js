@@ -18,13 +18,47 @@
 // If we didn't take that into the account, we could send much simpler signals
 // like just `0` or whatever, but the code would be less resilient.
 
-function waitForMsgType(target, type) {
-  return new Promise(resolve => {
-    target.addEventListener('message', function onMsg({ data }) {
-      if (data?.type !== type) return;
+const isDedicatedWorker =
+  typeof DedicatedWorkerGlobalScope !== 'undefined' &&
+  self instanceof DedicatedWorkerGlobalScope;
+
+function waitForMsgType(target, type, { timeout = 30000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for ${type}`));
+    }, timeout);
+
+    function cleanup() {
+      clearTimeout(timer);
       target.removeEventListener('message', onMsg);
+      if (target.removeEventListener) {
+        target.removeEventListener('error', onError);
+        target.removeEventListener('messageerror', onMessageError);
+      }
+    }
+
+    function onMsg({ data }) {
+      if (data?.type !== type) return;
+      cleanup();
       resolve(data);
-    });
+    }
+
+    function onError(event) {
+      cleanup();
+      reject(event.error || new Error(event.message || 'Worker failed'));
+    }
+
+    function onMessageError(event) {
+      cleanup();
+      reject(new Error(`Worker messageerror: ${event}`));
+    }
+
+    target.addEventListener('message', onMsg);
+    if (target.addEventListener) {
+      target.addEventListener('error', onError, { once: true });
+      target.addEventListener('messageerror', onMessageError, { once: true });
+    }
   });
 }
 
@@ -39,7 +73,7 @@ function waitForMsgType(target, type) {
 // and temporary bugs so that you don't need to deal with them in your code.
 import { initSync, wbg_rayon_start_worker } from '../../..';
 
-if (name === "wasm_bindgen_worker") {
+if (isDedicatedWorker && self.name === 'wasm_bindgen_worker') {
   waitForMsgType(self, 'wasm_bindgen_worker_init').then(async data => {
     initSync(data.init);
     postMessage({ type: 'wasm_bindgen_worker_ready' });
@@ -47,14 +81,28 @@ if (name === "wasm_bindgen_worker") {
   });
 }
 
+let initThreadPoolPromise;
+let rayonWorkers = [];
+
 export async function startWorkers(module, memory, builder) {
+  if (initThreadPoolPromise) return initThreadPoolPromise;
+
+  initThreadPoolPromise = startWorkersInner(module, memory, builder).catch(err => {
+    initThreadPoolPromise = undefined;
+    throw err;
+  });
+
+  return initThreadPoolPromise;
+}
+
+async function startWorkersInner(module, memory, builder) {
   const workerInit = {
     type: 'wasm_bindgen_worker_init',
     init: { module, memory },
     receiver: builder.receiver()
   };
 
-  await Promise.all(
+  const workers = await Promise.all(
     Array.from({ length: builder.numThreads() }, async () => {
       // Self-spawn into a new Worker.
       //
@@ -76,10 +124,24 @@ export async function startWorkers(module, memory, builder) {
           name: 'wasm_bindgen_worker'
         }
       );
-      worker.postMessage(workerInit);
-      await waitForMsgType(worker, 'wasm_bindgen_worker_ready');
-      return worker;
+
+      try {
+        worker.postMessage(workerInit);
+        await waitForMsgType(worker, 'wasm_bindgen_worker_ready');
+        return worker;
+      } catch (err) {
+        worker.terminate();
+        throw err;
+      }
     })
   );
-  builder.build();
+
+  try {
+    builder.build();
+  } catch (err) {
+    for (const worker of workers) worker.terminate();
+    throw err;
+  }
+
+  rayonWorkers.push(...workers);
 }

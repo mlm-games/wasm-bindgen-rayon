@@ -55,10 +55,14 @@ extern "C" {
 #[wasm_bindgen]
 impl wbg_rayon_PoolBuilder {
     fn new(num_threads: usize) -> Self {
-        #[cfg(debug_assertions)]
         if num_threads == 0 {
             wasm_bindgen::throw_str("Number of threads must be greater than zero.");
         }
+
+        if num_threads > 256 {
+            wasm_bindgen::throw_str("Refusing to spawn more than 256 Wasm workers.");
+        }
+
         let (sender, receiver) = bounded(num_threads);
         Self {
             num_threads,

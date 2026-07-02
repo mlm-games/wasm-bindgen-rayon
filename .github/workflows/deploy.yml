@@ -10,20 +10,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-        # For some reason installing the rust toolchain via wasm-pack leads to CI failures.
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: demo/package-lock.json
+    # For some reason installing the rust toolchain via wasm-pack leads to CI failures.
     # This will read the top level rustup-toolchain.toml and install the required stuff.
     - name: Trigger toolchain installation
       working-directory: ./demo
-      run: cargo fetch
+      run: cargo fetch --locked
     - name: Build demo
       working-directory: ./demo
       run: |
         npm ci
         npm run build
-    - name: Deploy 🚀
-      uses: JamesIves/github-pages-deploy-action@3.6.2
+    - name: Deploy
+      uses: JamesIves/github-pages-deploy-action@v4.6.8
       with:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        BRANCH: gh-pages # The branch the action should deploy to.
-        FOLDER: demo/dist # The folder the action should deploy.
+        folder: demo/dist
+        branch: gh-pages

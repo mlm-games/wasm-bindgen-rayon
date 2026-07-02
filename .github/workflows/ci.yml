@@ -8,7 +8,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: test/package-lock.json
     - name: Install npm deps
       working-directory: ./test
       run: npm ci
@@ -16,7 +21,7 @@ jobs:
     # This will read the top level rustup-toolchain.toml and install the required stuff.
     - name: Trigger toolchain installation
       working-directory: ./test
-      run: cargo fetch
+      run: cargo fetch --locked
     - name: Run tests
       working-directory: ./test
       run: npm test

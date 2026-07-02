@@ -118,7 +118,7 @@ The easiest way to configure those flags is:
 
   ```toml
   [toolchain]
-  channel = "nightly-2025-11-15"
+  channel = "nightly-2026-07-15"
   components = ["rust-src"]
   targets = ["wasm32-unknown-unknown"]
   ```

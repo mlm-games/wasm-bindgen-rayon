@@ -14,12 +14,12 @@
 	},
 	"scripts": {
 		"postinstall": "playwright install chromium firefox",
-		"prebuild:bundler": "wasm-pack build --target web --out-name test --out-dir out/bundler-base/pkg && shx cp index.* out/bundler-base",
+		"prebuild:bundler": "RUSTFLAGS=\"-C target-feature=+atomics,+bulk-memory -Clink-arg=--shared-memory -Clink-arg=--max-memory=1073741824 -Clink-arg=--import-memory -Clink-arg=--export=__wasm_init_tls -Clink-arg=--export=__tls_size -Clink-arg=--export=__tls_align -Clink-arg=--export=__tls_base\" wasm-pack build --target web --out-name test --out-dir out/bundler-base/pkg -- -Z build-std=panic_abort,std && shx cp index.* out/bundler-base",
 		"build:bundler:webpack": "webpack",
 		"build:bundler:vite": "vite build",
 		"build:bundler:parcel": "parcel build out/bundler-base/index.html --dist-dir out/parcel --public-url . --no-optimize",
 		"build:bundler": "run-p build:bundler:*",
-		"build:no-bundler": "wasm-pack build --target web --out-name test --out-dir out/no-bundler/pkg -- --features wasm-bindgen-rayon/no-bundler && shx cp index.* out/no-bundler",
+		"build:no-bundler": "RUSTFLAGS=\"-C target-feature=+atomics,+bulk-memory -Clink-arg=--shared-memory -Clink-arg=--max-memory=1073741824 -Clink-arg=--import-memory -Clink-arg=--export=__wasm_init_tls -Clink-arg=--export=__tls_size -Clink-arg=--export=__tls_align -Clink-arg=--export=__tls_base\" wasm-pack build --target web --out-name test --out-dir out/no-bundler/pkg -- --features wasm-bindgen-rayon/no-bundler -Z build-std=panic_abort,std && shx cp index.* out/no-bundler",
 		"pretest": "run-p build:bundler build:no-bundler",
 		"test": "playwright test"
 	}

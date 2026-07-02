@@ -1,33 +1,52 @@
-name: Demo
+name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  deploy:
-
+  build:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: 22
-        cache: npm
-        cache-dependency-path: demo/package-lock.json
-    # For some reason installing the rust toolchain via wasm-pack leads to CI failures.
-    # This will read the top level rustup-toolchain.toml and install the required stuff.
-    - name: Trigger toolchain installation
-      working-directory: ./demo
-      run: cargo fetch --locked
-    - name: Build demo
-      working-directory: ./demo
-      run: |
-        npm ci
-        npm run build
-    - name: Deploy
-      uses: JamesIves/github-pages-deploy-action@v4.6.8
-      with:
-        folder: demo/dist
-        branch: gh-pages
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: demo/package-lock.json
+      - uses: Swatinem/rust-cache@v2
+
+      # Read the top-level rust-toolchain.toml and install the required stuff.
+      - name: Trigger toolchain installation
+        working-directory: ./demo
+        run: cargo fetch --locked
+      - name: Build demo
+        working-directory: ./demo
+        run: |
+          npm ci
+          npm run build
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: demo/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

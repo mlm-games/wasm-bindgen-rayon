@@ -13,17 +13,11 @@
 
 #![doc = include_str!("../README.md")]
 
-// Note: `atomics` is whitelisted in `target_feature` detection, but `bulk-memory` isn't,
-// so we can check only presence of the former. This should be enough to catch most common
-// mistake (forgetting to pass `RUSTFLAGS` altogether).
-#[cfg(all(target_arch = "wasm32", not(doc), not(target_feature = "atomics")))]
-compile_error!("Did you forget to enable `atomics` and `bulk-memory` features as outlined in wasm-bindgen-rayon README?");
-
-use crossbeam_channel::{bounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, bounded};
 use js_sys::Promise;
 use rayon::{ThreadBuilder, ThreadPoolBuilder};
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
+use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "no-bundler")]
 use js_sys::JsString;
@@ -55,10 +49,14 @@ extern "C" {
 #[wasm_bindgen]
 impl wbg_rayon_PoolBuilder {
     fn new(num_threads: usize) -> Self {
-        #[cfg(debug_assertions)]
         if num_threads == 0 {
             wasm_bindgen::throw_str("Number of threads must be greater than zero.");
         }
+
+        if num_threads > 256 {
+            wasm_bindgen::throw_str("Refusing to spawn more than 256 Wasm workers.");
+        }
+
         let (sender, receiver) = bounded(num_threads);
         Self {
             num_threads,

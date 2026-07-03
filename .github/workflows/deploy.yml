@@ -2,28 +2,65 @@ name: Demo
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  deploy:
-
+  build:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: ./demo
     steps:
-    - uses: actions/checkout@v3
-        # For some reason installing the rust toolchain via wasm-pack leads to CI failures.
-    # This will read the top level rustup-toolchain.toml and install the required stuff.
-    - name: Trigger toolchain installation
-      working-directory: ./demo
-      run: cargo fetch
-    - name: Build demo
-      working-directory: ./demo
-      run: |
-        npm ci
-        npm run build
-    - name: Deploy 🚀
-      uses: JamesIves/github-pages-deploy-action@3.6.2
-      with:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        BRANCH: gh-pages # The branch the action should deploy to.
-        FOLDER: demo/dist # The folder the action should deploy.
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install trunk
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+
+      - name: Build with trunk
+        run: |
+          trunk build --release --public-url /${{ github.event.repository.name }}/
+          touch dist/.nojekyll
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-dist
+          path: demo/dist
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: demo-dist
+          path: demo/dist
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: demo/dist
+
+      - name: Deploy to Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

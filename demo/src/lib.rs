@@ -1,10 +1,16 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use hsl::HSL;
-use js_sys::Date;
 use num_complex::Complex64;
 use rand::Rng;
 use rayon::prelude::*;
-use wasm_bindgen::{prelude::*, Clamped};
-use web_sys::{CanvasRenderingContext2d, ImageData};
+use repose_core::*;
+use repose_material::material3::{Button, ButtonConfig};
+use repose_platform::RenderContext;
+use repose_ui::{TextStyle, *};
+use wasm_bindgen::prelude::*;
+
+static POOL_READY: AtomicBool = AtomicBool::new(false);
 
 type RGBA = [u8; 4];
 
@@ -18,7 +24,6 @@ impl Generator {
     fn new(width: u32, height: u32, max_iterations: u32) -> Self {
         let max_iterations = max_iterations.max(1);
         let mut rng = rand::thread_rng();
-
         Self {
             width,
             height,
@@ -80,85 +85,160 @@ impl Generator {
     }
 }
 
-fn draw(canvas_id: &str, time_id: &str, parallel: bool) -> Result<(), JsValue> {
-    let document = web_sys::window().unwrap().document().unwrap();
-    let canvas = document
-        .get_element_by_id(canvas_id)
-        .unwrap()
-        .dyn_into::<web_sys::HtmlCanvasElement>()?;
-    let width = canvas.width();
-    let height = canvas.height();
-    let ctx = canvas
-        .get_context("2d")?
-        .unwrap()
-        .dyn_into::<CanvasRenderingContext2d>()?;
+const WIDTH: u32 = 700;
+const HEIGHT: u32 = 700;
+const MAX_ITER: u32 = 1000;
 
-    if parallel {
-        let n = web_sys::window().unwrap().navigator().hardware_concurrency() as usize;
-        let threads = n.max(1).min(32);
-        let _ = wasm_bindgen_rayon::init_thread_pool(threads);
-    }
+fn app(s: &mut Scheduler, rc: &RenderContext) -> View {
+    let th = theme();
 
-    let gen = Generator::new(width, height, 1000);
-    let start = Date::now();
+    let img_handle = remember_state_with_key("img", || rc.alloc_image_handle());
+    let timing_text = remember_state_with_key("timing", String::new);
 
-    let pixels = if parallel {
-        gen.render_par()
-    } else {
-        gen.render_seq()
+    let img_handle_val = *img_handle.borrow();
+
+    let on_single = {
+        let rc = rc.clone();
+        let img = img_handle.clone();
+        let timing = timing_text.clone();
+        move || {
+            let gen = Generator::new(WIDTH, HEIGHT, MAX_ITER);
+            let start = js_sys::Date::now();
+            let pixels = gen.render_seq();
+            let elapsed = js_sys::Date::now() - start;
+            rc.set_image_rgba8(*img.borrow(), WIDTH, HEIGHT, pixels, true);
+            *timing.borrow_mut() = format!("{:.2} ms (single thread)", elapsed);
+            request_frame();
+        }
     };
 
-    let elapsed = Date::now() - start;
+    let on_multi = {
+        let rc = rc.clone();
+        let img = img_handle.clone();
+        let timing = timing_text.clone();
+        move || {
+            let gen = Generator::new(WIDTH, HEIGHT, MAX_ITER);
+            let start = js_sys::Date::now();
+            let pixels = gen.render_par();
+            let elapsed = js_sys::Date::now() - start;
+            rc.set_image_rgba8(*img.borrow(), WIDTH, HEIGHT, pixels, true);
+            *timing.borrow_mut() = format!("{:.2} ms (multi thread)", elapsed);
+            request_frame();
+        }
+    };
 
-    let img_data = ImageData::new_with_u8_clamped_array(Clamped(&pixels), width)?;
-    ctx.put_image_data(&img_data, 0.0, 0.0)?;
+    let timing_str = timing_text.borrow().clone();
+    let multi_enabled = POOL_READY.load(Ordering::Relaxed);
 
-    let output = document.get_element_by_id(time_id).unwrap();
-    output.set_text_content(Some(&format!("{:.2} ms", elapsed)));
-
-    Ok(())
+    Column(Modifier::new().fill_max_size().background(th.background).padding(16.0).align_items(AlignItems::Center)).child((
+        Text("Mandelbrot Fractal")
+            .size(24.0)
+            .color(th.on_background)
+            .modifier(Modifier::new().padding(8.0)),
+        Text("Powered by wasm-bindgen-rayon")
+            .size(14.0)
+            .color(th.on_surface_variant)
+            .modifier(Modifier::new().padding(16.0)),
+        Row(Modifier::new().padding(12.0)).child((
+            Button(
+                Modifier::new(),
+                on_single,
+                ButtonConfig::default(),
+                || {
+                    Text("Single thread")
+                        .modifier(Modifier::new().padding_values(PaddingValues {
+                            left: 16.0,
+                            right: 16.0,
+                            top: 8.0,
+                            bottom: 8.0,
+                        }))
+                },
+            ),
+            if multi_enabled {
+                Button(
+                    Modifier::new().padding_values(PaddingValues {
+                        left: 8.0,
+                        right: 0.0,
+                        top: 0.0,
+                        bottom: 0.0,
+                    }),
+                    on_multi,
+                    ButtonConfig::default(),
+                    || {
+                        Text("All threads")
+                            .modifier(Modifier::new().padding_values(PaddingValues {
+                                left: 16.0,
+                                right: 16.0,
+                                top: 8.0,
+                                bottom: 8.0,
+                            }))
+                    },
+                )
+            } else {
+                Button(
+                    Modifier::new().padding_values(PaddingValues {
+                        left: 8.0,
+                        right: 0.0,
+                        top: 0.0,
+                        bottom: 0.0,
+                    }),
+                    || {},
+                    ButtonConfig {
+                        enabled: false,
+                        ..Default::default()
+                    },
+                    || {
+                        Text("Initializing...")
+                            .modifier(Modifier::new().padding_values(PaddingValues {
+                                left: 16.0,
+                                right: 16.0,
+                                top: 8.0,
+                                bottom: 8.0,
+                            }))
+                    },
+                )
+            },
+        )),
+        scope!("timing", s, [timing_str], {
+            if timing_str.is_empty() {
+                Spacer()
+            } else {
+                Text(&timing_str)
+                    .size(14.0)
+                    .color(th.on_surface_variant)
+            }
+        }),
+        scope!("image", s, [img_handle_val], {
+            Image(
+                Modifier::new()
+                    .size(WIDTH as f32, HEIGHT as f32)
+                    .padding(12.0),
+                img_handle_val,
+            )
+            .image_fit(ImageFit::Contain)
+        }),
+    ))
 }
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(start)]
-fn start() -> Result<(), JsValue> {
-    let document = web_sys::window().unwrap().document().unwrap();
+pub fn start() -> Result<(), JsValue> {
+    let n = web_sys::window()
+        .map(|w: web_sys::Window| w.navigator().hardware_concurrency() as usize)
+        .unwrap_or(1)
+        .max(1)
+        .min(32);
 
-    let single_btn = document
-        .get_element_by_id("singleThread")
-        .unwrap()
-        .dyn_into::<web_sys::HtmlButtonElement>()?;
-    single_btn.remove_attribute("disabled")?;
+    let promise = wasm_bindgen_rayon::init_thread_pool(n);
+    wasm_bindgen_futures::spawn_local(async move {
+        if wasm_bindgen_futures::JsFuture::from(promise).await.is_ok() {
+            POOL_READY.store(true, Ordering::SeqCst);
+            request_frame();
+        }
+    });
 
-    let multi_btn = document
-        .get_element_by_id("multiThread")
-        .unwrap()
-        .dyn_into::<web_sys::HtmlButtonElement>()?;
-
-    let is_isolated = js_sys::Reflect::get(
-        &web_sys::window().unwrap(),
-        &"crossOriginIsolated".into(),
+    repose_platform::web::run_web_app(
+        app,
+        repose_platform::web::WebOptions::new(None),
     )
-    .ok()
-    .and_then(|v| v.as_bool())
-    .unwrap_or(false);
-
-    if !is_isolated {
-        multi_btn.set_value("Multi-threaded (requires COOP/COEP headers)");
-    } else {
-        multi_btn.remove_attribute("disabled")?;
-    }
-
-    let cb = Closure::wrap(Box::new(move || {
-        let _ = draw("canvas", "time", false);
-    }) as Box<dyn FnMut()>);
-    single_btn.add_event_listener_with_callback("click", cb.as_ref().unchecked_ref())?;
-    cb.forget();
-
-    let cb2 = Closure::wrap(Box::new(move || {
-        let _ = draw("canvas", "time", true);
-    }) as Box<dyn FnMut()>);
-    multi_btn.add_event_listener_with_callback("click", cb2.as_ref().unchecked_ref())?;
-    cb2.forget();
-
-    Ok(())
 }

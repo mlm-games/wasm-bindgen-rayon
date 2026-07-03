@@ -1,60 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <link data-trunk rel="rust" data-target-name="wasm_bindgen_rayon_demo" />
+    <meta name="referrer" content="no-referrer">
     <title>Demo for Rust + WebAssembly threads</title>
-    <link data-trunk rel="rust" data-bin="wasm-bindgen-rayon-demo" />
-    <style>
-        html, body {
-            height: 100vh;
-            margin: 0;
-        }
-
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .button-container {
-            display: flex;
-            gap: 3pt;
-        }
-
-        input[type="button"] {
-            flex: 1;
-        }
-
-        #canvas-container {
-            flex-grow: 1;
-            display: flex;
-            overflow: hidden;
-        }
-
-        #canvas {
-            max-width: 100%;
-            max-height: 100%;
-            width: auto;
-            height: auto;
-            aspect-ratio: 1;
-        }
-
-        p {
-            padding: 3pt;
-        }
-    </style>
 </head>
-<body>
-    <p>This is a demo for <a href="https://github.com/RReverser/wasm-bindgen-rayon">wasm-bindgen-rayon</a>, generating a <a href="https://en.wikipedia.org/wiki/Mandelbrot_set">Mandelbrot fractal</a> with WebAssembly threads.</p>
-    <div class="button-container">
-        <input type="button" id="singleThread" value="Draw using a single thread" disabled>
-        <input type="button" id="multiThread" value="Draw using all available threads" disabled>
-    </div>
-    <p><output id="time">Click one of the buttons to see the image & timings.</output></p>
-    <div id="canvas-container">
-        <canvas id="canvas" width="700" height="700"></canvas>
-    </div>
-</body>
+<body></body>
 </html>

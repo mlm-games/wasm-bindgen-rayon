@@ -23,6 +23,7 @@ const isDedicatedWorker =
   self instanceof DedicatedWorkerGlobalScope;
 
 function waitForMsgType(target, type, { timeout = 30000 } = {}) {
+  const types = Array.isArray(type) ? type : [type];
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup();
@@ -39,7 +40,7 @@ function waitForMsgType(target, type, { timeout = 30000 } = {}) {
     }
 
     function onMsg({ data }) {
-      if (data?.type !== type) return;
+      if (!data || !types.includes(data.type)) return;
       cleanup();
       resolve(data);
     }
@@ -75,7 +76,12 @@ import { initSync, wbg_rayon_start_worker } from '../../..';
 
 if (isDedicatedWorker && self.name === 'wasm_bindgen_worker') {
   waitForMsgType(self, 'wasm_bindgen_worker_init').then(async data => {
-    initSync(data.init);
+    try {
+      initSync(data.init);
+    } catch (err) {
+      postMessage({ type: 'wasm_bindgen_worker_error', error: err.message || String(err) });
+      return;
+    }
     postMessage({ type: 'wasm_bindgen_worker_ready' });
     wbg_rayon_start_worker(data.receiver);
   });
@@ -127,7 +133,13 @@ async function startWorkersInner(module, memory, builder) {
 
       try {
         worker.postMessage(workerInit);
-        await waitForMsgType(worker, 'wasm_bindgen_worker_ready');
+        const data = await waitForMsgType(worker, [
+          'wasm_bindgen_worker_ready',
+          'wasm_bindgen_worker_error'
+        ]);
+        if (data.type === 'wasm_bindgen_worker_error') {
+          throw new Error(data.error || 'Worker initialization failed');
+        }
         return worker;
       } catch (err) {
         worker.terminate();

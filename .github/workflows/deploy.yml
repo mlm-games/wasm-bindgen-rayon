@@ -46,6 +46,7 @@ jobs:
       contents: read
       pages: write
       id-token: write
+      actions: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -55,6 +56,22 @@ jobs:
         with:
           name: demo-dist
           path: demo/dist
+
+      - name: Prune duplicate github-pages artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          artifacts=$(gh api "/repos/$REPO/actions/runs/$RUN_ID/artifacts" \
+            --jq '[.artifacts[] | select(.name == "github-pages")] | sort_by(.created_at) | reverse')
+          count=$(echo "$artifacts" | jq 'length')
+          echo "Found $count github-pages artifact(s) in this run."
+          if [ "$count" -le 1 ]; then exit 0; fi
+          echo "$artifacts" | jq -r '.[1:] | .[].id' | while read -r id; do
+            echo "Deleting duplicate artifact $id"
+            gh api -X DELETE "/repos/$REPO/actions/artifacts/$id"
+          done
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

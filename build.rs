@@ -9,6 +9,9 @@ fn main() {
         .unwrap_or_default();
 
     if !rustflags.contains("+atomics") {
-        println!("cargo:warning=wasm-bindgen-rayon: atomics target feature not detected in RUSTFLAGS. Make sure to enable `-C target-feature=+atomics,+bulk-memory` (see crate README for details).");
+        println!(
+            "cargo:warning=wasm-bindgen-rayon: atomics target feature not detected in RUSTFLAGS. \
+             Make sure to enable `-C target-feature=+atomics,+bulk-memory` (see crate README for details)."
+        );
     }
 }

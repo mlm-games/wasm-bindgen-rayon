@@ -217,15 +217,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-bindgen-rayon-test"
-version = "0.1.0"
-dependencies = [
- "rayon",
- "wasm-bindgen",
- "wasm-bindgen-rayon",
-]
-
-[[package]]
 name = "wasm-bindgen-shared"
 version = "0.2.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"

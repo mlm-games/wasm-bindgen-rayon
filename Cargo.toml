@@ -22,7 +22,6 @@ crossbeam-channel = "0.5"
 js-sys = "0.3"
 
 [workspace]
-members = ["test"]
 exclude = ["demo"]
 
 [features]

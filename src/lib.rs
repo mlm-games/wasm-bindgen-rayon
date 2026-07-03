@@ -13,14 +13,6 @@
 
 #![doc = include_str!("../README.md")]
 
-// Note: `atomics` is whitelisted in `target_feature` detection, but `bulk-memory` isn't,
-// so we can check only presence of the former. This should be enough to catch most common
-// mistake (forgetting to pass `RUSTFLAGS` altogether).
-#[cfg(all(target_arch = "wasm32", not(doc), not(target_feature = "atomics")))]
-compile_error!(
-    "Did you forget to enable `atomics` and `bulk-memory` features as outlined in wasm-bindgen-rayon README?"
-);
-
 use crossbeam_channel::{Receiver, Sender, bounded};
 use js_sys::Promise;
 use rayon::{ThreadBuilder, ThreadPoolBuilder};

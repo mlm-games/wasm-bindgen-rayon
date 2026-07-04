@@ -102,9 +102,9 @@ fn app(s: &mut Scheduler, rc: &RenderContext) -> View {
         let img = img_handle.clone();
         let timing = timing_text.clone();
         move || {
-            let gen = Generator::new(WIDTH, HEIGHT, MAX_ITER);
+            let img_gen = Generator::new(WIDTH, HEIGHT, MAX_ITER);
             let start = js_sys::Date::now();
-            let pixels = gen.render_seq();
+            let pixels = img_gen.render_seq();
             let elapsed = js_sys::Date::now() - start;
             rc.set_image_rgba8(*img.borrow(), WIDTH, HEIGHT, pixels, true);
             *timing.borrow_mut() = format!("{:.2} ms (single thread)", elapsed);
@@ -117,9 +117,9 @@ fn app(s: &mut Scheduler, rc: &RenderContext) -> View {
         let img = img_handle.clone();
         let timing = timing_text.clone();
         move || {
-            let gen = Generator::new(WIDTH, HEIGHT, MAX_ITER);
+            let image_gen = Generator::new(WIDTH, HEIGHT, MAX_ITER);
             let start = js_sys::Date::now();
-            let pixels = gen.render_par();
+            let pixels = image_gen.render_par();
             let elapsed = js_sys::Date::now() - start;
             rc.set_image_rgba8(*img.borrow(), WIDTH, HEIGHT, pixels, true);
             *timing.borrow_mut() = format!("{:.2} ms (multi thread)", elapsed);
@@ -130,7 +130,14 @@ fn app(s: &mut Scheduler, rc: &RenderContext) -> View {
     let timing_str = timing_text.borrow().clone();
     let multi_enabled = POOL_READY.load(Ordering::Acquire);
 
-    Column(Modifier::new().fill_max_size().background(th.background).padding(16.0).align_items(AlignItems::Center)).child((
+    Column(
+        Modifier::new()
+            .fill_max_size()
+            .background(th.background)
+            .padding(16.0)
+            .align_items(AlignItems::CENTER),
+    )
+    .child((
         Text("Mandelbrot Fractal")
             .size(24.0)
             .color(th.on_background)
@@ -140,20 +147,14 @@ fn app(s: &mut Scheduler, rc: &RenderContext) -> View {
             .color(th.on_surface_variant)
             .modifier(Modifier::new().padding(16.0)),
         Row(Modifier::new().padding(12.0)).child((
-            Button(
-                Modifier::new(),
-                on_single,
-                ButtonConfig::default(),
-                || {
-                    Text("Single thread")
-                        .modifier(Modifier::new().padding_values(PaddingValues {
-                            left: 16.0,
-                            right: 16.0,
-                            top: 8.0,
-                            bottom: 8.0,
-                        }))
-                },
-            ),
+            Button(Modifier::new(), on_single, ButtonConfig::default(), || {
+                Text("Single thread").modifier(Modifier::new().padding_values(PaddingValues {
+                    left: 16.0,
+                    right: 16.0,
+                    top: 8.0,
+                    bottom: 8.0,
+                }))
+            }),
             if multi_enabled {
                 Button(
                     Modifier::new().padding_values(PaddingValues {
@@ -165,13 +166,14 @@ fn app(s: &mut Scheduler, rc: &RenderContext) -> View {
                     on_multi,
                     ButtonConfig::default(),
                     || {
-                        Text("All threads")
-                            .modifier(Modifier::new().padding_values(PaddingValues {
+                        Text("All threads").modifier(Modifier::new().padding_values(
+                            PaddingValues {
                                 left: 16.0,
                                 right: 16.0,
                                 top: 8.0,
                                 bottom: 8.0,
-                            }))
+                            },
+                        ))
                     },
                 )
             } else {
@@ -188,13 +190,14 @@ fn app(s: &mut Scheduler, rc: &RenderContext) -> View {
                         ..Default::default()
                     },
                     || {
-                        Text("Initializing...")
-                            .modifier(Modifier::new().padding_values(PaddingValues {
+                        Text("Initializing...").modifier(Modifier::new().padding_values(
+                            PaddingValues {
                                 left: 16.0,
                                 right: 16.0,
                                 top: 8.0,
                                 bottom: 8.0,
-                            }))
+                            },
+                        ))
                     },
                 )
             },
@@ -203,9 +206,7 @@ fn app(s: &mut Scheduler, rc: &RenderContext) -> View {
             if timing_str.is_empty() {
                 Spacer()
             } else {
-                Text(&timing_str)
-                    .size(14.0)
-                    .color(th.on_surface_variant)
+                Text(&timing_str).size(14.0).color(th.on_surface_variant)
             }
         }),
         scope!("image", s, [img_handle_val], {
@@ -237,8 +238,5 @@ pub fn start() -> Result<(), JsValue> {
         }
     });
 
-    repose_platform::web::run_web_app(
-        app,
-        repose_platform::web::WebOptions::new(None),
-    )
+    repose_platform::web::run_web_app(app, repose_platform::web::WebOptions::new(None))
 }

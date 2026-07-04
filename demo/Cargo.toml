@@ -20,15 +20,15 @@ getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["Window", "Navigator"] }
 js-sys = "0.3"
-repose-core = "0.20"
-repose-ui = "0.20"
-repose-material = "0.20"
-repose-platform = "0.20"
-repose-render-wgpu = "0.20"
+repose-core = "0.21"
+repose-ui = "0.21"
+repose-material = "0.21"
+repose-platform = "0.21"
+repose-render-wgpu = "0.21"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 winit = { version = "0.30", features = ["rwh_05"] }
-wgpu = { version = "29", features = ["webgpu", "webgl"] }
+wgpu = { version = "30", features = ["webgpu", "webgl"] }
 console_error_panic_hook = "0.1"
 console_log = "1"
 log = "0.4"

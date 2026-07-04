@@ -108,7 +108,7 @@ The other issue is that the Rust standard library for the WebAssembly target is 
 
 Since we want standard library to be thread-safe and [`std::sync`](https://doc.rust-lang.org/std/sync/) APIs to work, you'll need to use the nightly compiler toolchain and pass some flags to rebuild the standard library in addition to your own code.
 
-In order to reduce risk of breakages, it's strongly recommended to use a fixed nightly version. This crate was tested with `nightly-2025-11-15`.
+In order to reduce risk of breakages, it's strongly recommended to use a fixed nightly version. This crate was tested with `nightly-2026-07-01`.
 
 ### Using config files
 
@@ -118,7 +118,7 @@ The easiest way to configure those flags is:
 
   ```toml
   [toolchain]
-  channel = "nightly-2026-07-15"
+  channel = "nightly-2026-07-01"
   components = ["rust-src"]
   targets = ["wasm32-unknown-unknown"]
   ```
@@ -162,7 +162,7 @@ RUSTFLAGS='-C target-feature=+atomics,+bulk-memory
     -Clink-arg=--shared-memory -Clink-arg=--max-memory=1073741824 -Clink-arg=--import-memory
     -Clink-arg=--export=__wasm_init_tls -Clink-arg=--export=__tls_size
     -Clink-arg=--export=__tls_align -Clink-arg=--export=__tls_base' \
-  rustup run nightly-2025-11-15 \
+  rustup run nightly-2026-07-01 \
   wasm-pack build --target web [...] \
   -- -Z build-std=panic_abort,std
 ```

@@ -128,7 +128,7 @@ fn app(s: &mut Scheduler, rc: &RenderContext) -> View {
     };
 
     let timing_str = timing_text.borrow().clone();
-    let multi_enabled = POOL_READY.load(Ordering::Relaxed);
+    let multi_enabled = POOL_READY.load(Ordering::Acquire);
 
     Column(Modifier::new().fill_max_size().background(th.background).padding(16.0).align_items(AlignItems::Center)).child((
         Text("Mandelbrot Fractal")

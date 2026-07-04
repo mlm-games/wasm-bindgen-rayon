@@ -33,10 +33,8 @@ function waitForMsgType(target, type, { timeout = 30000 } = {}) {
     function cleanup() {
       clearTimeout(timer);
       target.removeEventListener('message', onMsg);
-      if (target.removeEventListener) {
-        target.removeEventListener('error', onError);
-        target.removeEventListener('messageerror', onMessageError);
-      }
+      target.removeEventListener('error', onError);
+      target.removeEventListener('messageerror', onMessageError);
     }
 
     function onMsg({ data }) {
@@ -56,10 +54,8 @@ function waitForMsgType(target, type, { timeout = 30000 } = {}) {
     }
 
     target.addEventListener('message', onMsg);
-    if (target.addEventListener) {
-      target.addEventListener('error', onError, { once: true });
-      target.addEventListener('messageerror', onMessageError, { once: true });
-    }
+    target.addEventListener('error', onError, { once: true });
+    target.addEventListener('messageerror', onMessageError, { once: true });
   });
 }
 
@@ -108,52 +104,60 @@ async function startWorkersInner(module, memory, builder) {
     receiver: builder.receiver()
   };
 
-  const workers = await Promise.all(
-    Array.from({ length: builder.numThreads() }, async () => {
-      // Self-spawn into a new Worker.
-      //
-      // TODO: while `new URL('...', import.meta.url) is a semi-standard
-      // way to get asset URLs relative to the module across various bundlers
-      // and browser, ideally we should switch to `import.meta.resolve`
-      // once it becomes supported across bundlers as well.
-      //
-      // Note: we could use `../../..` as the URL here to inline workerHelpers.js
-      // into the parent entry instead of creating another split point, but some
-      // bundlers don't support that in `new Worker` expressions.
-      const worker = new Worker(
-        /* webpackChunkName: 'wasm-bindgen-rayon' */ new URL(
-          './workerHelpers.js',
-          import.meta.url
-        ),
-        {
-          type: 'module',
-          name: 'wasm_bindgen_worker'
-        }
-      );
-
-      try {
-        worker.postMessage(workerInit);
-        const data = await waitForMsgType(worker, [
-          'wasm_bindgen_worker_ready',
-          'wasm_bindgen_worker_error'
-        ]);
-        if (data.type === 'wasm_bindgen_worker_error') {
-          throw new Error(data.error || 'Worker initialization failed');
-        }
-        return worker;
-      } catch (err) {
-        worker.terminate();
-        throw err;
-      }
-    })
-  );
+  const spawned = [];
 
   try {
-    builder.build();
+    const workers = await Promise.all(
+      Array.from({ length: builder.numThreads() }, async () => {
+        // Self-spawn into a new Worker.
+        //
+        // TODO: while `new URL('...', import.meta.url) is a semi-standard
+        // way to get asset URLs relative to the module across various bundlers
+        // and browser, ideally we should switch to `import.meta.resolve`
+        // once it becomes supported across bundlers as well.
+        //
+        // Note: we could use `../../..` as the URL here to inline workerHelpers.js
+        // into the parent entry instead of creating another split point, but some
+        // bundlers don't support that in `new Worker` expressions.
+        const worker = new Worker(
+          /* webpackChunkName: 'wasm-bindgen-rayon' */ new URL(
+            './workerHelpers.js',
+            import.meta.url
+          ),
+          {
+            type: 'module',
+            name: 'wasm_bindgen_worker'
+          }
+        );
+        spawned.push(worker);
+
+        try {
+          worker.postMessage(workerInit);
+          const data = await waitForMsgType(worker, [
+            'wasm_bindgen_worker_ready',
+            'wasm_bindgen_worker_error'
+          ]);
+          if (data.type === 'wasm_bindgen_worker_error') {
+            throw new Error(data.error || 'Worker initialization failed');
+          }
+          return worker;
+        } catch (err) {
+          worker.terminate();
+          throw err;
+        }
+      })
+    );
+
+    try {
+      builder.build();
+    } catch (err) {
+      for (const worker of workers) worker.terminate();
+      throw err;
+    }
+
+    rayonWorkers.push(...workers);
   } catch (err) {
-    for (const worker of workers) worker.terminate();
+    for (const worker of spawned) worker.terminate();
     throw err;
   }
-
-  rayonWorkers.push(...workers);
 }

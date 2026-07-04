@@ -29,10 +29,8 @@ function waitForMsgType(target, type, { timeout = 30000 } = {}) {
     function cleanup() {
       clearTimeout(timer);
       target.removeEventListener('message', onMsg);
-      if (target.removeEventListener) {
-        target.removeEventListener('error', onError);
-        target.removeEventListener('messageerror', onMessageError);
-      }
+      target.removeEventListener('error', onError);
+      target.removeEventListener('messageerror', onMessageError);
     }
 
     function onMsg({ data }) {
@@ -52,10 +50,8 @@ function waitForMsgType(target, type, { timeout = 30000 } = {}) {
     }
 
     target.addEventListener('message', onMsg);
-    if (target.addEventListener) {
-      target.addEventListener('error', onError, { once: true });
-      target.addEventListener('messageerror', onMessageError, { once: true });
-    }
+    target.addEventListener('error', onError, { once: true });
+    target.addEventListener('messageerror', onMessageError, { once: true });
   });
 }
 
@@ -110,6 +106,8 @@ async function startWorkersInner(module, memory, builder) {
   const scriptBlob = await response.blob();
   const workerUrl = URL.createObjectURL(scriptBlob);
 
+  const spawned = [];
+
   try {
     const workers = await Promise.all(
       Array.from({ length: builder.numThreads() }, async () => {
@@ -117,6 +115,7 @@ async function startWorkersInner(module, memory, builder) {
           type: 'module',
           name: 'wasm_bindgen_worker'
         });
+        spawned.push(worker);
 
         try {
           worker.postMessage(workerInit);
@@ -143,6 +142,9 @@ async function startWorkersInner(module, memory, builder) {
     }
 
     rayonWorkers.push(...workers);
+  } catch (err) {
+    for (const worker of spawned) worker.terminate();
+    throw err;
   } finally {
     URL.revokeObjectURL(workerUrl);
   }

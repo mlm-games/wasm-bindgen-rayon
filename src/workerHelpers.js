@@ -62,24 +62,19 @@ function waitForMsgType(target, type, { timeout = 30000 } = {}) {
 // # Note
 // Our JS should have been generated in
 // `[out-dir]/snippets/wasm-bindgen-rayon-[hash]/workerHelpers.js`,
-// resolve the main module via `../../..`.
-//
-// This might need updating if the generated structure changes on wasm-bindgen
-// side ever in the future, but works well with bundlers today. The whole
-// point of this crate, after all, is to abstract away unstable features
-// and temporary bugs so that you don't need to deal with them in your code.
-import { initSync, wbg_rayon_start_worker } from '../../..';
-
+// resolve the main module via `data.mainJS` passed from the builder.
 if (isDedicatedWorker && self.name === 'wasm_bindgen_worker') {
   waitForMsgType(self, 'wasm_bindgen_worker_init').then(async data => {
+    let pkg;
     try {
-      initSync(data.init);
+      pkg = await import(data.mainJS);
+      pkg.initSync(data.init);
     } catch (err) {
       postMessage({ type: 'wasm_bindgen_worker_error', error: err.message || String(err) });
       return;
     }
     postMessage({ type: 'wasm_bindgen_worker_ready' });
-    wbg_rayon_start_worker(data.receiver);
+    pkg.wbg_rayon_start_worker(data.receiver);
   });
 }
 
@@ -101,7 +96,8 @@ async function startWorkersInner(module, memory, builder) {
   const workerInit = {
     type: 'wasm_bindgen_worker_init',
     init: { module, memory },
-    receiver: builder.receiver()
+    receiver: builder.receiver(),
+    mainJS: builder.mainJS()
   };
 
   const spawned = [];

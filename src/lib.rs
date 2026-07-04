@@ -19,7 +19,6 @@ use rayon::{ThreadBuilder, ThreadPoolBuilder};
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 
-#[cfg(feature = "no-bundler")]
 use js_sys::JsString;
 
 // Naming is a workaround for https://github.com/rustwasm/wasm-bindgen/issues/2429
@@ -65,7 +64,6 @@ impl wbg_rayon_PoolBuilder {
         }
     }
 
-    #[cfg(feature = "no-bundler")]
     #[wasm_bindgen(js_name = mainJS)]
     pub fn main_js(&self) -> JsString {
         #[wasm_bindgen]
